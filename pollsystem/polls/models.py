@@ -1,3 +1,80 @@
 from django.db import models
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 
-# Create your models here.
+
+class Poll(models.Model):
+    """
+    Represents a poll/survey with a question.
+    
+    A poll can have multiple options (choices) and can be voted on by users.
+    Polls can be set to expire after a certain date.
+    """
+    title = models.CharField(
+        max_length=200,
+        help_text="The main question being asked in the poll"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional detailed description of the poll"
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='polls',
+        null=True,
+        blank=True,
+        help_text="User who created this poll (optional for anonymous polls)"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this poll is currently accepting votes"
+    )
+    allow_multiple_votes = models.BooleanField(
+        default=False,
+        help_text="Allow users to vote multiple times on this poll"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this poll was created"
+    )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this poll stops accepting votes (optional)"
+    )
+    
+    class Meta:
+        ordering = ['-created_at']  # Newest polls first
+        indexes = [
+            models.Index(fields=['is_active']),  # Fast filtering of active polls
+            models.Index(fields=['expires_at']),  # Fast expiry checks
+            models.Index(fields=['-created_at']),  # Fast ordering by date
+        ]
+    
+    def __str__(self):
+        return self.title
+    
+    def clean(self):
+        """
+        Validation: Ensure expires_at is in the future.
+        """
+        if self.expires_at and self.expires_at <= timezone.now():
+            raise ValidationError("Expiry date must be in the future")
+    
+    def is_expired(self):
+        """
+        Check if poll has expired.
+        """
+        if not self.expires_at:
+            return False
+        return timezone.now() > self.expires_at
+    
+    def save(self, *args, **kwargs):
+        """
+        Override save to auto-deactivate expired polls.
+        """
+        if self.is_expired():
+            self.is_active = False
+        super().save(*args, **kwargs)
