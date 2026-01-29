@@ -78,3 +78,36 @@ class Poll(models.Model):
         if self.is_expired():
             self.is_active = False
         super().save(*args, **kwargs)
+        
+        
+class Option(models.Model):
+    """
+    Represents a choice/option for a poll.
+    
+    Each poll must have at least 2 options for users to vote on.
+    """
+    poll = models.ForeignKey(
+        Poll,
+        on_delete=models.CASCADE,
+        related_name='options',
+        help_text="The poll this option belongs to"
+    )
+    text = models.CharField(
+        max_length=200,
+        help_text="The text of this option/choice"
+    )
+    order_index = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order of this option"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['order_index', 'id']  # Ordered by order_index, then by ID
+        indexes = [
+            models.Index(fields=['poll']),  # Fast lookup of poll's options
+        ]
+        unique_together = [['poll', 'order_index']]  # No duplicate order within same poll
+    
+    def __str__(self):
+        return f"{self.poll.title} - {self.text}"
