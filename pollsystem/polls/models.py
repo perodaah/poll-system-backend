@@ -111,3 +111,56 @@ class Option(models.Model):
     
     def __str__(self):
         return f"{self.poll.title} - {self.text}"
+
+
+class Vote(models.Model):
+    """
+    Represents a single vote on a poll option.
+    
+    Tracks who voted (by IP or user ID) to prevent duplicate voting.
+    """
+    poll = models.ForeignKey(
+        Poll,
+        on_delete=models.CASCADE,
+        related_name='votes',
+        help_text="The poll this vote belongs to"
+    )
+    option = models.ForeignKey(
+        Option,
+        on_delete=models.CASCADE,
+        related_name='votes',
+        help_text="The option that was voted for"
+    )
+    voter_identifier = models.CharField(
+        max_length=255,
+        help_text="IP address or user ID to prevent duplicate votes"
+    )
+    voted_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this vote was cast"
+    )
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['poll', 'voter_identifier']),  # Fast duplicate check
+            models.Index(fields=['option']),  # Fast vote counting per option
+        ]
+        # CRITICAL: Prevents duplicate voting
+        # If allow_multiple_votes is False, this constraint ensures one vote per person per poll
+        constraints = [
+            models.UniqueConstraint(
+                fields=['poll', 'voter_identifier'],
+                name='unique_vote_per_poll',
+                violation_error_message='You have already voted on this poll'
+            )
+        ]
+    
+    def __str__(self):
+        return f"Vote on {self.poll.title} for {self.option.text}"
+    
+    def clean(self):
+        """
+        Validation: Ensure option belongs to the poll.
+        """
+        if self.option.poll != self.poll:
+            raise ValidationError("Option does not belong to this poll")
