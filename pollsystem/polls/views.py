@@ -1,8 +1,15 @@
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, viewsets
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from django.contrib.auth.models import User
-from .serializers import UserRegistrationSerializer, UserSerializer
-
+from .models import Poll, Option, Vote  
+from .serializers import (
+    UserRegistrationSerializer, 
+    UserSerializer,
+    PollSerializer,
+    PollListSerializer
+)
+from .permissions import IsOwnerOrReadOnly
 
 class UserRegistrationView(generics.CreateAPIView):
     """
@@ -43,3 +50,46 @@ class UserProfileView(generics.RetrieveAPIView):
     
     def get_object(self):
         return self.request.user  # Return the logged-in user
+    
+    
+class PollViewSet(viewsets.ModelViewSet):
+    """
+    API endpoints for poll management.
+    
+    Provides:
+    - GET /api/polls/ - List all active polls
+    - POST /api/polls/ - Create new poll (authenticated users only)
+    - GET /api/polls/{id}/ - Get poll details
+    - PUT/PATCH /api/polls/{id}/ - Update poll (owner only)
+    - DELETE /api/polls/{id}/ - Delete poll (owner only)
+    """
+    queryset = Poll.objects.filter(is_active=True).select_related('created_by').prefetch_related('options')
+    serializer_class = PollSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return PollListSerializer  # Use lightweight serializer for list view
+        return PollSerializer  # Full serializer for detail view and others
+
+    def perform_create(self, serializer):
+        """ 
+        Automatically set the poll creator to the logged-in user
+        """
+        serializer.save(created_by=self.request.user)
+        
+    def get_queryset(self):
+        """
+        Optionally filter by active status via query param.
+        """
+        queryset = Poll.objects.select_related('created_by').prefetch_related('options')
+        
+        # Filter by is_active if provided in query params
+        is_active = self.request.query_params.get('is_active', None)
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        else:
+            # By default, only show active polls
+            queryset = queryset.filter(is_active=True)
+        
+        return queryset.order_by('-created_at')
