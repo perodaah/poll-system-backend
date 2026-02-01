@@ -104,7 +104,8 @@ class PollListSerializer(serializers.ModelSerializer):
     Shows basic info without all options details.
     """
     created_by = serializers.StringRelatedField(read_only=True)
-    total_votes = serializers.SerializerMethodField()
+    options_count = serializers.SerializerMethodField(read_only=True)
+    total_votes = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Poll
@@ -112,7 +113,8 @@ class PollListSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'created_by',
             'is_active', 'created_at', 'expires_at',
             'options_count', 'total_votes'
-    ]
+        ]
+        read_only_fields = ['id', 'created_at', 'options_count', 'total_votes']
         
     def get_options_count(self, obj):
         """Get number of options for this poll."""
