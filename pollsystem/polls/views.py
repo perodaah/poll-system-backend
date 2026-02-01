@@ -85,10 +85,15 @@ class PollViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Optionally filter by active status via query param.
+        For vote and results actions, show all polls (including inactive).
         """
         queryset = Poll.objects.select_related('created_by').prefetch_related('options')
         
-        # Filter by is_active if provided in query params
+        # For vote and results actions, return all polls
+        if self.action in ['vote', 'results']:
+            return queryset.order_by('-created_at')
+        
+        # For other actions, filter by is_active
         is_active = self.request.query_params.get('is_active', None)
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
@@ -116,7 +121,8 @@ class PollViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[permissions.AllowAny])
     def vote(self, request, pk=None):
         """
-        Cast a vote on this poll 
+        Cast a vote on this poll.
+        
         POST /api/polls/{id}/vote/
         Body: {"option_id": 2}
         """
@@ -125,17 +131,17 @@ class PollViewSet(viewsets.ModelViewSet):
         # Check if poll is active
         if not poll.is_active:
             return Response(
-                {"error": "This poll is no longer accepting vote."},
+                {"error": "This poll is no longer accepting votes."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+        
         # Check if poll has expired
         if poll.is_expired():
             return Response(
                 {"error": "This poll has expired."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+        
         # Validate the vote data
         serializer = VoteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -144,24 +150,20 @@ class PollViewSet(viewsets.ModelViewSet):
         
         # Verify option belongs to this poll
         try:
-            option = Option.objects.get(id=option_id)
-            if option.poll_id != poll.id:
-                return Response(
-                    {"error": "This option does not belong to this poll."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            option = Option.objects.get(id=option_id, poll=poll)
         except Option.DoesNotExist:
             return Response(
-                {"error": "Invalid option."},
+                {"error": "This option does not belong to this poll."},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
         voter_identifier = self.get_voter_identifier(request)
         
         # Try to create the vote (duplicate will be caught by database constraint)
         try:
             vote = Vote.objects.create(
                 poll=poll,
-                option_id=option_id,
+                option=option,
                 voter_identifier=voter_identifier
             )
             
@@ -173,12 +175,15 @@ class PollViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             # Check if it's a duplicate vote error
-            if 'unique_vote_per_poll' in str(e):
+            error_str = str(e)
+            if 'unique_vote_per_poll' in error_str or 'UNIQUE constraint' in error_str:
                 return Response(
                     {"error": "You have already voted on this poll."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             else:
+                # Log the actual error for debugging
+                print(f"Vote creation error: {e}")
                 return Response(
                     {"error": "An error occurred while recording your vote."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
