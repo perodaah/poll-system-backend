@@ -10,10 +10,12 @@ class OptionSerializer(serializers.ModelSerializer):
     Serializer for poll options.
     Used for nested creation and display
     """
+    votes_count = serializers.SerializerMethodField(read_only=True)
+    
     class Meta:
         model = Option
         fields = ['id', 'text', 'order_index', 'votes_count']
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'votes_count']
         
     def get_votes_count(self, obj):
         """Get vote count for this option."""
@@ -30,7 +32,7 @@ class PollSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Poll
-        fields = ['
+        fields = [
                   'id', 'title', 'description', 'created_by',
                   'is_active', 'allow_multiple_votes', 'created_at',
                   'expires_at', 'options', 'total_votes', 'is_expired'
@@ -101,16 +103,16 @@ class PollListSerializer(serializers.ModelSerializer):
     Lightweight serializer for poll list view.
     Shows basic info without all options details.
     """
-    created by = serializers.StringRelatedField(read_only=True)
+    createdby = serializers.StringRelatedField(read_only=True)
     total_votes = serializers.SerializerMethodField()
     
     class Meta:
         model = Poll
         fields = [
-            'id', 'title', description', 'created_by',
+            'id', 'title', 'description', 'created_by',
             'is_active', 'created_at', 'expires_at',
             'options_count', 'total_votes'
-        ]
+    ]
         
     def get_options_count(self, obj):
         """Get number of options for this poll."""
