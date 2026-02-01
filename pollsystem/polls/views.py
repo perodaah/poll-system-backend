@@ -7,7 +7,7 @@ from .serializers import (
     UserRegistrationSerializer, 
     UserSerializer,
     PollSerializer,
-    PollListSerializer
+    PollListSerializer,
     VoteSerializer
 )
 from .permissions import IsOwnerOrReadOnly
@@ -137,10 +137,24 @@ class PollViewSet(viewsets.ModelViewSet):
             )
             
         # Validate the vote data
-        serializer = VoteSerializer(data=request.data, context={'poll_id': poll.id})
+        serializer = VoteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         option_id = serializer.validated_data['option_id']
+        
+        # Verify option belongs to this poll
+        try:
+            option = Option.objects.get(id=option_id)
+            if option.poll_id != poll.id:
+                return Response(
+                    {"error": "This option does not belong to this poll."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except Option.DoesNotExist:
+            return Response(
+                {"error": "Invalid option."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         voter_identifier = self.get_voter_identifier(request)
         
         # Try to create the vote (duplicate will be caught by database constraint)

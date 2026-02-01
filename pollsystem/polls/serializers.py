@@ -185,7 +185,7 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'date_joined']
     
     
-class VoteSerializer(serializers.ModelSerializer):
+class VoteSerializer(serializers.Serializer):
     """
     Serializer for casting votes.
     
@@ -196,12 +196,12 @@ class VoteSerializer(serializers.ModelSerializer):
     
     def validate_option_id(self, value):
         """
-        Ensure the option belongs to the poll being voted on.
+        Ensure the option exists.
         """
         try:
             Option.objects.get(id=value)
         except Option.DoesNotExist:
-            raise serializers.ValidationError("Invlaid option ID.")
+            raise serializers.ValidationError("Invalid option ID.")
         return value
     
     
