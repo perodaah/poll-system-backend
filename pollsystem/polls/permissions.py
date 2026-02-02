@@ -1,6 +1,5 @@
 from rest_framework import permissions 
 
-
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """
     Custom permission to only allow owners of a poll to edit it.
