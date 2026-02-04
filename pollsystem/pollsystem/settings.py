@@ -1,5 +1,6 @@
 from decouple import config
 import dj_database_url
+import os
 """
 Django settings for pollsystem project.
 
@@ -23,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = config('9ynf-%ff#-gunxht(l!2^du-e4_1r#^n0bb7xu$_lvm$5ifk7h')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
@@ -86,8 +87,9 @@ WSGI_APPLICATION = "pollsystem.wsgi.application"
 # Database
 DATABASES = {
     'default': dj_database_url.config(
-        default=f"postgresql://{config('DB_USER')}:{config('DB_PASSWORD')}@{config('DB_HOST')}:{config('DB_PORT')}/{config('DB_NAME')}",
-        conn_max_age=600
+        default=os.getenv('DATABASE_URL'),
+        conn_max_age=600,
+        conn_health_checks=True,
     )
 }
 
