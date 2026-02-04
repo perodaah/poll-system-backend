@@ -14,6 +14,8 @@ from .permissions import IsOwnerOrReadOnly
 from django.db.models import Count
 from rest_framework.decorators import action 
 import hashlib
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 
 class UserRegistrationView(generics.CreateAPIView):
     """
@@ -58,14 +60,9 @@ class UserProfileView(generics.RetrieveAPIView):
     
 class PollViewSet(viewsets.ModelViewSet):
     """
-    API endpoints for poll management.
+    ViewSet for managing polls.
     
-    Provides:
-    - GET /api/polls/ - List all active polls
-    - POST /api/polls/ - Create new poll (authenticated users only)
-    - GET /api/polls/{id}/ - Get poll details
-    - PUT/PATCH /api/polls/{id}/ - Update poll (owner only)
-    - DELETE /api/polls/{id}/ - Delete poll (owner only)
+    Provides CRUD operations for polls and custom actions for voting and viewing results.
     """
     queryset = Poll.objects.filter(is_active=True).select_related('created_by').prefetch_related('options')
     serializer_class = PollSerializer
@@ -73,8 +70,8 @@ class PollViewSet(viewsets.ModelViewSet):
     
     def get_serializer_class(self):
         if self.action == 'list':
-            return PollListSerializer  # Use lightweight serializer for list view
-        return PollSerializer  # Full serializer for detail view and others
+            return PollListSerializer
+        return PollSerializer
 
     def perform_create(self, serializer):
         """ 
@@ -89,20 +86,16 @@ class PollViewSet(viewsets.ModelViewSet):
         """
         queryset = Poll.objects.select_related('created_by').prefetch_related('options')
         
-        # For vote and results actions, return all polls
         if self.action in ['vote', 'results']:
             return queryset.order_by('-created_at')
         
-        # For other actions, filter by is_active
         is_active = self.request.query_params.get('is_active', None)
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
         else:
-            # By default, only show active polls
             queryset = queryset.filter(is_active=True)
         
         return queryset.order_by('-created_at')
-    
     
     def get_voter_identifier(self, request):
         """
@@ -113,11 +106,29 @@ class PollViewSet(viewsets.ModelViewSet):
         if request.user.is_authenticated:
             return f"user-{request.user.id}"
         else:
-            #Get client IP address from request
             ip = request.META.get('REMOTE_ADDR', '')
-            # Hash the IP for privacy
             return f"ip-{hashlib.sha256(ip.encode()).hexdigest()}"
-        
+    
+    @extend_schema(
+        summary="Cast a vote on a poll",
+        description="Submit a vote for a specific option in the poll. Works for both authenticated and anonymous users. Duplicate votes are prevented.",
+        request=VoteSerializer,
+        responses={
+            201: OpenApiExample(
+                'Success',
+                value={
+                    "message": "Vote recorded successfully",
+                    "poll_id": 1,
+                    "option_id": 2
+                }
+            ),
+            400: OpenApiExample(
+                'Duplicate Vote',
+                value={"error": "You have already voted on this poll."}
+            )
+        },
+        tags=['Voting']
+    )
     @action(detail=True, methods=['post'], permission_classes=[permissions.AllowAny])
     def vote(self, request, pk=None):
         """
@@ -128,27 +139,23 @@ class PollViewSet(viewsets.ModelViewSet):
         """
         poll = self.get_object()
         
-        # Check if poll is active
         if not poll.is_active:
             return Response(
                 {"error": "This poll is no longer accepting votes."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check if poll has expired
         if poll.is_expired():
             return Response(
                 {"error": "This poll has expired."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Validate the vote data
         serializer = VoteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         option_id = serializer.validated_data['option_id']
         
-        # Verify option belongs to this poll
         try:
             option = Option.objects.get(id=option_id, poll=poll)
         except Option.DoesNotExist:
@@ -159,7 +166,6 @@ class PollViewSet(viewsets.ModelViewSet):
         
         voter_identifier = self.get_voter_identifier(request)
         
-        # Try to create the vote (duplicate will be caught by database constraint)
         try:
             vote = Vote.objects.create(
                 poll=poll,
@@ -174,7 +180,6 @@ class PollViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
-            # Check if it's a duplicate vote error
             error_str = str(e)
             if 'unique_vote_per_poll' in error_str or 'UNIQUE constraint' in error_str:
                 return Response(
@@ -182,16 +187,47 @@ class PollViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             else:
-                # Log the actual error for debugging
                 print(f"Vote creation error: {e}")
                 return Response(
                     {"error": "An error occurred while recording your vote."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-                
+    
+    @extend_schema(
+        summary="Get poll results",
+        description="Retrieve vote counts and percentages for all options in the poll. Available to everyone, even for inactive polls.",
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "poll": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "integer"},
+                            "title": {"type": "string"},
+                            "total_votes": {"type": "integer"},
+                            "is_active": {"type": "boolean"},
+                            "is_expired": {"type": "boolean"}
+                        }
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "option": {"type": "string"},
+                                "votes": {"type": "integer"},
+                                "percentage": {"type": "number"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        tags=['Voting']
+    )
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
     def results(self, request, pk=None):
-
         """
         Get poll results with vote counts and percentages.
         
@@ -199,15 +235,12 @@ class PollViewSet(viewsets.ModelViewSet):
         """
         poll = self.get_object()
         
-        # Get total votes for this poll
         total_votes = poll.votes.count()
         
-        # Get vote count per option using aggregation
         options_with_votes = poll.options.annotate(
             vote_count=Count('votes')
         ).order_by('order_index')
         
-        # Calculate percentages
         results = []
         for option in options_with_votes:
             percentage = (option.vote_count / total_votes * 100) if total_votes > 0 else 0
