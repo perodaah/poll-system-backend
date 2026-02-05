@@ -1,4 +1,5 @@
 from decouple import config
+import os
 """
 Django settings for pollsystem project.
 
@@ -193,7 +194,7 @@ if not DEBUG:
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
     STATIC_URL = '/static/'
     
-# CORS Configuration
+
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
 ```
