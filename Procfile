@@ -1,1 +1,1 @@
-web: gunicorn pollsystem.wsgi --log-file -
+web: cd pollsystem && gunicorn pollsystem.wsgi --log-file -
