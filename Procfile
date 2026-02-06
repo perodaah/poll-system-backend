@@ -1,1 +1,1 @@
-web: gunicorn pollsystem.pollsystem.wsgi --log-file - --chdir pollsystem
+web: gunicorn pollsystem.wsgi --log-file -
