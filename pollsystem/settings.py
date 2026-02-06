@@ -2,6 +2,7 @@ from decouple import config
 from pathlib import Path
 from datetime import timedelta
 import os
+import dj_database_url
 
 """
 Django settings for pollsystem project.
@@ -96,14 +97,10 @@ WSGI_APPLICATION = "pollsystem.wsgi.application"
 
 # Database
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST'),
-        'PORT': config('DB_PORT', default='5432'),
-    }
+    "default": dj_database_url.config(
+        conn_max_age=600,
+        ssl_require=True
+    )
 }
 
 
