@@ -96,12 +96,28 @@ WSGI_APPLICATION = "pollsystem.wsgi.application"
 
 
 # Database
-DATABASES = {
-    "default": dj_database_url.config(
-        conn_max_age=600,
-        ssl_require=True
-    )
-}
+# Database - works locally and on Railway
+if DEBUG:
+    # Local development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='poll_system_db'),
+            'USER': config('DB_USER', default='poll_admin'),
+            'PASSWORD': config('DB_PASSWORD', default='password'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
+    }
+else:
+    # Production (Railway)
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=config('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
 
 
 # Password validation
