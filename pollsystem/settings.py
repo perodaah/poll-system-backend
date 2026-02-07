@@ -95,24 +95,26 @@ WSGI_APPLICATION = "pollsystem.wsgi.application"
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 
-# Database
-# Database - works locally and on Railway
-if 'RAILWAY_ENVIRONMENT' in os.environ and os.environ['RAILWAY_ENVIRONMENT'] == 'production':
-    # Production on Railway
+# Database configuration
+# Works locally and on Railway
+import dj_database_url
+
+if DEBUG:
+    # Local development
     DATABASES = {
-        'default': dj_database_url.config(
-            default=config('DATABASE_URL'),
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME'),
+            'USER': config('DB_USER'),
+            'PASSWORD': config('DB_PASSWORD'),
+            'HOST': config('DB_HOST'),
+            'PORT': config('DB_PORT'),
+        }
     }
 else:
-    # Local development (use Railway public DB)
+    # Production (Railway)
     DATABASES = {
-        'default': dj_database_url.parse(
-            config('DATABASE_URL'),
-            conn_max_age=600
-        )
+        'default': dj_database_url.parse(config('DATABASE_URL'), conn_max_age=600, conn_health_checks=True)
     }
 
 
