@@ -1,1 +1,1 @@
-web: python manage.py migrate && gunicorn pollsystem.wsgi --log-file -
+web: gunicorn pollsystem.wsgi --log-file -
