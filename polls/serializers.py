@@ -17,7 +17,7 @@ class OptionSerializer(serializers.ModelSerializer):
         fields = ['id', 'text', 'order_index', 'votes_count']
         read_only_fields = ['id', 'votes_count']
         
-    def get_votes_count(self, obj):
+    def get_votes_count(self, obj) -> int:
         """Get vote count for this option."""
         return obj.votes.count()
     
@@ -39,11 +39,11 @@ class PollSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_by', 'created_at',]
         
-    def get_total_votes(self, obj):
+    def get_total_votes(self, obj) -> int:
         """Get total vote count for this poll."""
         return obj.votes.count()
         
-    def get_is_expired(self, obj):
+    def get_is_expired(self, obj) -> bool:
         """Check if the poll is expired."""
         return obj.is_expired()
         
@@ -116,11 +116,11 @@ class PollListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'options_count', 'total_votes']
         
-    def get_options_count(self, obj):
+    def get_options_count(self, obj) -> int:
         """Get number of options for this poll."""
         return obj.options.count()
     
-    def get_total_votes(self, obj):
+    def get_total_votes(self, obj) -> int:
         """Get total vote count for this poll."""
         return obj.votes.count()
     
